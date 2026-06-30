@@ -1,33 +1,40 @@
 from tkinter import *
 from tkinter import (ttk, messagebox)
-#from transformers import BertTokenizer, BertModel, AutoModel
 from transformers import pipeline
 import os
 from HF_token import HF_TOKEN
 
 
-def chat(question: str) -> str:
-    MODEL = "microsoft/Phi-4-mini-instruct" #"HuggingFaceTB/SmolLM2-1.7B-Instruct"
+def run_chat_model(context: list, max_num_token: int) -> str:
+    #model = "microsoft/Phi-4-mini-instruct"
+    model = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 
-    chat = [
-        {"role": "system", "content": "You are a helpful science assistant."},
-        {"role": "user",   "content": question}
-    ]
-    pipe = pipeline(task="text-generation", model=MODEL, tokenizer=MODEL, dtype="auto", device_map="auto")
-    response = pipe(chat, max_new_tokens=512)
+    pipe = pipeline(task="text-generation", model=model, tokenizer=model, dtype="auto", device_map="auto")
+    response = pipe(context, max_new_tokens=max_num_token)
     return response[0]["generated_text"][-1]["content"]
-
-def summarize(article: str) -> str:
-    MODEL = "microsoft/Phi-4-mini-instruct"
-
-    summarizer = pipeline(model=MODEL)
-    return summarizer(article, max_length=130, min_length=30, do_sample=False)
 
 
 class AItask:
     ANSWER = 0
     SUMMARIZE = 1
     NUM_TASKS = 2
+
+    @classmethod
+    def do(cls, task: int, model_input_data: str) -> str:
+        if task == cls.ANSWER:
+            context = [
+                {"role": "system", "content": "You are a helpful science assistant."},
+                {"role": "user",   "content": model_input_data}
+            ]
+            return run_chat_model(context, 512)
+
+        if task == cls.SUMMARIZE:
+            context = [
+                {"role": "user", "content": "Summarize the following text:\n" + model_input_data}
+            ]
+            return run_chat_model(context, 130)
+
+        return ""
 
 class AIExperiment(Tk):
     def __init__(self, screenName = None, baseName = None, className = "Tk", useTk = True, sync = False, use = None):
@@ -97,12 +104,8 @@ class AIExperiment(Tk):
         if self.currTask < 0:
             messagebox.showinfo("Error", "You must select the task first.")
             return
-        if self.currTask == AItask.ANSWER:
-            answ = chat(self.txt_ques.get("1.0", "end-1c"))
-            self.txt_answ.insert(END, answ + "\n")
-        if self.currTask == AItask.SUMMARIZE:
-            answ = summarize(self.txt_ques.get("1.0", "end-1c"))
-            self.txt_answ.insert(END, answ + "\n")
+        answ = AItask.do(self.currTask, self.txt_ques.get("1.0", "end-1c"))
+        self.txt_answ.insert(END, answ + "\n")
 
 
 if __name__ == "__main__":
