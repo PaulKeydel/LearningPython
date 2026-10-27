@@ -2,37 +2,34 @@ from tkinter import *
 from tkinter import (ttk, messagebox)
 from transformers import pipeline
 import os
-from HF_token import HF_TOKEN
-
-
-def run_chat_model(context: list, max_num_token: int) -> str:
-    #model = "microsoft/Phi-4-mini-instruct"
-    model = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-
-    pipe = pipeline(task="text-generation", model=model, tokenizer=model, dtype="auto", device_map="auto")
-    response = pipe(context, max_new_tokens=max_num_token)
-    return response[0]["generated_text"][-1]["content"]
 
 
 class AItask:
-    ANSWER = 0
-    SUMMARIZE = 1
+    MODE_ANSWER = 0
+    MODE_SUMMARIZE = 1
     NUM_TASKS = 2
 
-    @classmethod
-    def do(cls, task: int, model_input_data: str) -> str:
-        if task == cls.ANSWER:
+    def run_chat_model(self, context: list, max_num_token: int) -> str:
+        model = "microsoft/Phi-4-mini-instruct"
+        #model = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+
+        pipe = pipeline(task="text-generation", model=model, tokenizer=model, dtype="auto", device_map="auto")
+        response = pipe(context, max_new_tokens=max_num_token)
+        return response[0]["generated_text"][-1]["content"]
+
+    def __call__(self, task: int, model_input_data: str) -> str:
+        if task == AItask.MODE_ANSWER:
             context = [
                 {"role": "system", "content": "You are a helpful science assistant."},
                 {"role": "user",   "content": model_input_data}
             ]
-            return run_chat_model(context, 512)
+            return self.run_chat_model(context, 512)
 
-        if task == cls.SUMMARIZE:
+        if task == AItask.MODE_SUMMARIZE:
             context = [
                 {"role": "user", "content": "Summarize the following text:\n" + model_input_data}
             ]
-            return run_chat_model(context, 130)
+            return self.run_chat_model(context, 130)
 
         return ""
 
@@ -40,16 +37,14 @@ class AIExperiment(Tk):
     def __init__(self, screenName = None, baseName = None, className = "Tk", useTk = True, sync = False, use = None):
         super().__init__(screenName, baseName, className, useTk, sync, use)
         
-        self.allTasks = [""] * AItask.NUM_TASKS
-        self.allTasks[AItask.ANSWER] = "AI shall answer a question"
-        self.allTasks[AItask.SUMMARIZE] = "AI shall summarize a article"
+        self.taskCaptions = ["AI shall answer a question", "AI shall summarize a article"]
         self.currTask = -1
 
         self.title("AI Experiment")
         self.resizable(0, 0)
 
         self.cb_task = ttk.Combobox(self)
-        self.cb_task["values"] = self.allTasks
+        self.cb_task["values"] = self.taskCaptions
         self.cb_task.current(0)
         self.cb_task.grid(row=0, column=0, sticky="we")
 
@@ -92,24 +87,29 @@ class AIExperiment(Tk):
 
         question = "Hey, can you explain gravity to me?"
 
-        self.currTask = self.allTasks.index(self.cb_task.get())
+        self.currTask = self.taskCaptions.index(self.cb_task.get())
         self.txt_ques.delete('1.0', END)
         self.txt_answ.delete('1.0', END)
-        if self.currTask == AItask.ANSWER:
+        if self.currTask == AItask.MODE_ANSWER:
             self.txt_ques.insert(END, question + "\n")
-        if self.currTask == AItask.SUMMARIZE:
+        if self.currTask == AItask.MODE_SUMMARIZE:
             self.txt_ques.insert(END, article + "\n")
 
     def click_action(self):
         if self.currTask < 0:
             messagebox.showinfo("Error", "You must select the task first.")
             return
-        answ = AItask.do(self.currTask, self.txt_ques.get("1.0", "end-1c"))
+        tAI = AItask()
+        answ = tAI(self.currTask, self.txt_ques.get("1.0", "end-1c"))
         self.txt_answ.insert(END, answ + "\n")
 
 
 if __name__ == "__main__":
-    os.environ["HF_TOKEN"] = HF_TOKEN
+    try:
+        from HF_token import HF_TOKEN
+        os.environ["HF_TOKEN"] = HF_TOKEN
+    except:
+        print("Please provide Access Token for HuggingFace.\n")
 
     app = AIExperiment()
     app.mainloop()
