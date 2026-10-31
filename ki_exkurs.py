@@ -5,69 +5,59 @@ import os
 
 
 class AItask:
-    MODE_ANSWER = 0
-    MODE_SUMMARIZE = 1
-    NUM_TASKS = 2
+    MODEL = "microsoft/Phi-4-mini-instruct"
+    #MODEL = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 
     def run_chat_model(self, context: list, max_num_token: int) -> str:
-        model = "microsoft/Phi-4-mini-instruct"
-        #model = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-
-        pipe = pipeline(task="text-generation", model=model, tokenizer=model, dtype="auto", device_map="auto")
+        pipe = pipeline(task="text-generation", model=AItask.MODEL, tokenizer=AItask.MODEL, dtype="auto", device_map="auto")
         response = pipe(context, max_new_tokens=max_num_token)
         return response[0]["generated_text"][-1]["content"]
 
-    def __call__(self, task: int, model_input_data: str) -> str:
-        if task == AItask.MODE_ANSWER:
-            context = [
-                {"role": "system", "content": "You are a helpful science assistant."},
-                {"role": "user",   "content": model_input_data}
-            ]
-            return self.run_chat_model(context, 512)
+    def __call__(self, query: str, tokens_out: int) -> str:
+        context = [
+            {"role": "system", "content": "You are a helpful science assistant."},
+            {"role": "user", "content": query}
+        ]
+        return self.run_chat_model(context, tokens_out)
 
-        if task == AItask.MODE_SUMMARIZE:
-            context = [
-                {"role": "user", "content": "Summarize the following text:\n" + model_input_data}
-            ]
-            return self.run_chat_model(context, 130)
-
-        return ""
 
 class AIExperiment(Tk):
     def __init__(self, screenName = None, baseName = None, className = "Tk", useTk = True, sync = False, use = None):
         super().__init__(screenName, baseName, className, useTk, sync, use)
         
         self.taskCaptions = ["AI shall answer a question", "AI shall summarize a article"]
-        self.currTask = -1
 
         self.title("AI Experiment")
         self.resizable(0, 0)
 
-        self.cb_task = ttk.Combobox(self)
+        frame_ques = LabelFrame(self, text="Input", relief="groove")
+        frame_ques.grid(row=0, column=0, padx=10, pady=10)
+
+        lbl_exp = Label(frame_ques, text="Examples:", justify="left", anchor="w")
+        lbl_exp.grid(row=0, column=0)
+
+        self.cb_task = ttk.Combobox(frame_ques)
         self.cb_task["values"] = self.taskCaptions
         self.cb_task.current(0)
-        self.cb_task.grid(row=0, column=0, sticky="we")
+        self.cb_task.grid(row=0, column=1)
 
-        lbs_ques = Label(self, text="Input:", justify="left", anchor="w")
-        lbs_ques.grid(row=1, column=0, sticky=W)
+        btn_predef = Button(frame_ques, text="Set", command=self.click_example)
+        btn_predef.grid(row=0, column=2)
 
-        self.txt_ques = Text(self, height=10, wrap=WORD)
-        self.txt_ques.grid(row=2, column=0)
+        self.txt_ques = Text(frame_ques, height=10, wrap=WORD)
+        self.txt_ques.grid(row=1, column=0, columnspan=3)
 
-        lbl_answ = Label(self, text="Output:", justify="left", anchor="w")
-        lbl_answ.grid(row=3, column=0, sticky=W)
+        frame_answ = LabelFrame(self, text="Output", relief="groove")
+        frame_answ.grid(row=1, column=0, padx=10, pady=10)
 
-        self.txt_answ = Text(self, height=10, wrap=WORD)
-        self.txt_answ.grid(row=4, column=0)
+        self.txt_answ = Text(frame_answ, height=10, wrap=WORD)
+        self.txt_answ.grid(row=0, column=0)
 
-        btn_task = Button(self, text="Select task", command=self.click_task)
-        btn_task.grid(row=0, column=1)
+        btn_resp = Button(self, text="Get response", command=self.click_response)
+        btn_resp.grid(row=0, column=1)
 
-        btn = Button(self, text="Go further", command=self.click_action)
-        btn.grid(row=2, column=1)
-
-    def click_task(self):
-        article = """ New York (CNN)When Liana Barrientos was 23 years old, she got married in Westchester County, New York.
+    def click_example(self):
+        article = "Summarize the following text:\n" + """ New York (CNN)When Liana Barrientos was 23 years old, she got married in Westchester County, New York.
         A year later, she got married again in Westchester County, but to a different man and without divorcing her first husband.
         Only 18 days after that marriage, she got hitched yet again. Then, Barrientos declared "I do" five more times, sometimes only within two weeks of each other.
         In 2010, she married once more, this time in the Bronx. In an application for a marriage license, she stated it was her "first and only" marriage.
@@ -87,20 +77,24 @@ class AIExperiment(Tk):
 
         question = "Hey, can you explain gravity to me?"
 
-        self.currTask = self.taskCaptions.index(self.cb_task.get())
         self.txt_ques.delete('1.0', END)
         self.txt_answ.delete('1.0', END)
-        if self.currTask == AItask.MODE_ANSWER:
+        if self.cb_task.get() == self.taskCaptions[0]:
             self.txt_ques.insert(END, question + "\n")
-        if self.currTask == AItask.MODE_SUMMARIZE:
+        elif self.cb_task.get() == self.taskCaptions[1]:
             self.txt_ques.insert(END, article + "\n")
 
-    def click_action(self):
-        if self.currTask < 0:
-            messagebox.showinfo("Error", "You must select the task first.")
-            return
+    def click_response(self):
+        num_tokens = -1
+        if self.cb_task.get() == self.taskCaptions[0]:
+            num_tokens = 512
+        elif self.cb_task.get() == self.taskCaptions[1]:
+            num_tokens = 130
+
         tAI = AItask()
-        answ = tAI(self.currTask, self.txt_ques.get("1.0", "end-1c"))
+        answ = tAI(self.txt_ques.get("1.0", "end-1c"), num_tokens)
+
+        self.txt_answ.delete('1.0', END)
         self.txt_answ.insert(END, answ + "\n")
 
 
@@ -109,7 +103,7 @@ if __name__ == "__main__":
         from HF_token import HF_TOKEN
         os.environ["HF_TOKEN"] = HF_TOKEN
     except:
-        print("Please provide Access Token for HuggingFace.\n")
+        messagebox.showinfo("Error", "Please provide Access Token for HuggingFace.")
 
     app = AIExperiment()
     app.mainloop()
